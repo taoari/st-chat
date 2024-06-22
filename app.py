@@ -46,11 +46,16 @@ client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 ##### Initialize session_state
 
 # Adapted from https://docs.streamlit.io/develop/tutorials/llms/build-conversational-apps
-if "messages" not in st.session_state:
-    st.session_state["messages"] = []
 
-if "settings" not in st.session_state:
-    st.session_state['settings'] =  {}
+default_state = {
+    'messages': [], 
+    'settings': {},
+    'prev_speech_hash': None,
+    }
+
+for k, v in default_state.items():
+    if k not in st.session_state:
+        st.session_state[k] = v
 
 ##### Utils
 
@@ -140,6 +145,18 @@ def setup_siderbar():
         with st.popover("⚙️ Model parameters"):
             model_temp = st.slider("Temperature", min_value=0.0, max_value=2.0, value=0.3, step=0.1)
 
+        audio_prompt = None
+        speech_input = audio_recorder("Press to talk:", icon_size="2x", neutral_color="#6ca395", )
+        if speech_input:
+            st.audio(speech_input, format="audio/wav")
+            speech_hash = hash(speech_input)
+            if speech_hash != st.session_state['prev_speech_hash']:
+                st.session_state['prev_speech_hash'] = speech_hash
+                try:
+                    audio_prompt = speech_recognition(speech_input)
+                except:
+                    pass
+
         tts_voice, tts_model = None, None
         audio_response = st.toggle("Audio response", value=False)
         if audio_response:
@@ -148,15 +165,6 @@ def setup_siderbar():
                 tts_voice = st.selectbox("Select a voice:", ["alloy", "echo", "fable", "onyx", "nova", "shimmer"])
             with cols[1]:
                 tts_model = st.selectbox("Select a model:", ["tts-1", "tts-1-hd"], index=0)
-
-        audio_prompt = None
-        speech_input = audio_recorder("Press to talk:", icon_size="2x", neutral_color="#6ca395", )
-        if speech_input:
-            st.audio(speech_input, format="audio/wav")
-            try:
-                audio_prompt = speech_recognition(speech_input)
-            except:
-                audio_prompt = None
 
         settings = {
             'model': model,
@@ -172,6 +180,9 @@ def setup_siderbar():
 def setup_sidebar_export():
 
     with st.sidebar:
+
+        st.divider()
+
         # Converts the list of messages into a JSON Bytes format
         json_messages = json.dumps(st.session_state["messages"]).encode("utf-8")
 
@@ -182,6 +193,10 @@ def setup_sidebar_export():
             file_name="chat_conversation.json",
             mime="application/json",
         )
+
+        debug = st.toggle("Debug", value=False)
+        if debug:
+            st.json(st.session_state)
 
 def setup_action_buttons():
 
