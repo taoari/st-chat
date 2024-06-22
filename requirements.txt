@@ -1,4 +1,5 @@
 openai
-streamlit
+streamlit>=1.36.0
 streamlit-float
+# audio-recorder-streamlit
 tiktoken
