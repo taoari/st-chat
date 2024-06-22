@@ -51,6 +51,7 @@ default_state = {
     'messages': [], 
     'settings': {},
     'prev_speech_hash': None,
+    'audio_prompt': None,
     }
 
 for k, v in default_state.items():
@@ -138,24 +139,24 @@ def setup_header():
         """, unsafe_allow_html=True
     )
 
+    # use 1.35.0
+    # # hack to fix audio recorder icon does not show: https://github.com/Joooohan/audio-recorder-streamlit/issues/19
+    # st.html(
+    #     '''
+    #     <style>
+    #         iframe[title="audio_recorder_streamlit.audio_recorder"] {
+    #             height: auto;
+    #         }
+    #     </style>
+    #     '''
+    # )
+
 def setup_siderbar():
     # Sidebar
     with st.sidebar:
         model = st.selectbox("Select a model:", AVAILABLE_MODELS, index=0)
         with st.popover("⚙️ Model parameters"):
             model_temp = st.slider("Temperature", min_value=0.0, max_value=2.0, value=0.3, step=0.1)
-
-        audio_prompt = None
-        speech_input = audio_recorder("Press to talk:", icon_size="2x", neutral_color="#6ca395", )
-        if speech_input:
-            st.audio(speech_input, format="audio/wav")
-            speech_hash = hash(speech_input)
-            if speech_hash != st.session_state['prev_speech_hash']:
-                st.session_state['prev_speech_hash'] = speech_hash
-                try:
-                    audio_prompt = speech_recognition(speech_input)
-                except:
-                    pass
 
         tts_voice, tts_model = None, None
         audio_response = st.toggle("Audio response", value=False)
@@ -172,10 +173,8 @@ def setup_siderbar():
             'audio_response': audio_response,
             'tts_voice': tts_voice,
             'tts_model': tts_model,
-            'audio_prompt': audio_prompt,
         }
         st.session_state['settings'] = settings
-
 
 def setup_sidebar_export():
 
@@ -209,12 +208,26 @@ def setup_action_buttons():
         )
 
         # We set the space between the icons thanks to a share of 100
-        cols_dimensions = [2, 2, 14.3, 14.3, 10, 10, 8, 8]
+        cols_dimensions = [2, 8, 14.3, 14.3, 10, 10, 8, 8]
         cols_dimensions.append(100 - sum(cols_dimensions))
 
         col0, col1, col2, col3, col4, col5, col6, col7, col8 = action_buttons_container.columns(
             cols_dimensions
         )
+
+        with col1:
+            audio_prompt = None
+            speech_input = audio_recorder("", icon_size="2x", neutral_color="#6ca395")
+            if speech_input:
+                # st.audio(speech_input, format="audio/wav")
+                speech_hash = hash(speech_input)
+                if speech_hash != st.session_state['prev_speech_hash']:
+                    st.session_state['prev_speech_hash'] = speech_hash
+                    try:
+                        audio_prompt = speech_recognition(speech_input)
+                    except:
+                        pass
+            st.session_state['audio_prompt'] = audio_prompt
 
         with col2:
 
@@ -301,9 +314,9 @@ def setup_chat():
 
     # A chat input will add the corresponding prompt to the st.session_state["messages"]
     prompt = st.chat_input("How can I help you?")
-    if not prompt and settings['audio_prompt']:
-        prompt = settings['audio_prompt']
-        settings['audio_prompt'] = None
+    if not prompt and st.session_state['audio_prompt']:
+        prompt = st.session_state['audio_prompt']
+        st.session_state['audio_prompt'] = None
 
     if prompt:
         # and display it in the chat history
