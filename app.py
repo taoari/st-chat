@@ -45,13 +45,12 @@ client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 ##### Initialize session_state
 
-# Model Choice - Name to be adapter to your deployment
-if "model" not in st.session_state:
-    st.session_state["model"] = "gpt-4o"
-
 # Adapted from https://docs.streamlit.io/develop/tutorials/llms/build-conversational-apps
 if "messages" not in st.session_state:
     st.session_state["messages"] = []
+
+if "settings" not in st.session_state:
+    st.session_state['settings'] =  {}
 
 ##### Utils
 
@@ -90,6 +89,30 @@ def add_image_to_messages(key='uploaded_image'):
                 }]
             })
 
+def speech_recognition(speech_input, model="whisper-1"):
+    transcript = client.audio.transcriptions.create(
+        model=model, 
+        file=("audio.wav", speech_input),
+    )
+    return transcript.text
+
+def speech_sythesis(text, model, voice):
+    response =  client.audio.speech.create(
+        model=model,
+        voice=voice,
+        input=text,
+    )
+    return response.content
+
+def llm_stream(messages, model='gpt-3.5-turbo', temperature=0.0):
+    stream = client.chat.completions.create(
+        model=model,
+        messages=messages,
+        temperature=temperature,
+        stream=True,
+        max_tokens=512,  # Limited to 512 tokens for demo purposes
+    )
+    return stream
 
 ##### Streamlit UI
         
@@ -117,22 +140,33 @@ def setup_siderbar():
         with st.popover("⚙️ Model parameters"):
             model_temp = st.slider("Temperature", min_value=0.0, max_value=2.0, value=0.3, step=0.1)
 
-        model_params = {
-            "model": model,
-            "temperature": model_temp,
-        }
-
+        tts_voice, tts_model = None, None
         audio_response = st.toggle("Audio response", value=False)
         if audio_response:
             cols = st.columns(2)
             with cols[0]:
                 tts_voice = st.selectbox("Select a voice:", ["alloy", "echo", "fable", "onyx", "nova", "shimmer"])
             with cols[1]:
-                tts_model = st.selectbox("Select a model:", ["tts-1", "tts-1-hd"], index=1)
+                tts_model = st.selectbox("Select a model:", ["tts-1", "tts-1-hd"], index=0)
 
+        audio_prompt = None
         speech_input = audio_recorder("Press to talk:", icon_size="2x", neutral_color="#6ca395", )
         if speech_input:
             st.audio(speech_input, format="audio/wav")
+            try:
+                audio_prompt = speech_recognition(speech_input)
+            except:
+                audio_prompt = None
+
+        settings = {
+            'model': model,
+            'temperature': model_temp,
+            'audio_response': audio_response,
+            'tts_voice': tts_voice,
+            'tts_model': tts_model,
+            'audio_prompt': audio_prompt,
+        }
+        st.session_state['settings'] = settings
 
 
 def setup_sidebar_export():
@@ -235,6 +269,7 @@ def setup_action_buttons():
 def setup_chat():
     user_avatar = "👩‍💻"
     assistant_avatar = "🤖"
+    settings = st.session_state['settings']
 
     # We rebuild the previous conversation stored in st.session_state["messages"] with the corresponding emojis
     for message in st.session_state["messages"]:
@@ -250,29 +285,34 @@ def setup_chat():
                         st.image(content['image_url']['url'])
 
     # A chat input will add the corresponding prompt to the st.session_state["messages"]
-    if prompt := st.chat_input("How can I help you?"):
+    prompt = st.chat_input("How can I help you?")
+    if not prompt and settings['audio_prompt']:
+        prompt = settings['audio_prompt']
+        settings['audio_prompt'] = None
 
+    if prompt:
         # and display it in the chat history
         with st.chat_message("user", avatar=user_avatar):
             st.markdown(prompt)
         st.session_state["messages"].append({"role": "user", "content": prompt})
 
-    # if prompt or (len(st.session_state['messages']) > 0 and st.session_state['messages'][-1]['role'] == 'user'):
-    if prompt:
+    if prompt or (len(st.session_state['messages']) > 0 and st.session_state['messages'][-1]['role'] == 'user'):
 
         # Display assistant response in chat message container
         with st.chat_message("assistant", avatar=assistant_avatar):
-            stream = client.chat.completions.create(
-                model=st.session_state["model"],
-                messages=[
+            messages=[
                     {"role": m["role"], "content": m["content"]}
                     for m in st.session_state["messages"]
-                ],
-                stream=True,
-                max_tokens=512,  # Limited to 300 tokens for demo purposes
-            )
+                ]
+            stream = llm_stream(messages, model=settings["model"], temperature=settings['temperature'])
+
             response = st.write_stream(stream)
         st.session_state["messages"].append({"role": "assistant", "content": response})
+        
+        # TTS if enabled
+        if settings['audio_response']:
+            audio_bytes = speech_sythesis(response, model=settings['tts_model'], voice=settings['tts_voice'])
+            st.audio(audio_bytes, format='audio/mp3', autoplay=True)
 
     st.write("")
 
