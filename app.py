@@ -219,7 +219,7 @@ def setup_action_buttons():
 
         action_buttons_container = st.container()
         action_buttons_container.float(
-            "bottom: 6.9rem;background-color: var(--default-backgroundColor); padding-top: 1rem;"
+            "bottom: 6.2rem;background-color: var(--default-backgroundColor); padding-top: 1rem;"
         )
 
         # We set the space between the icons thanks to a share of 100
