@@ -5,6 +5,7 @@ import time
 import tiktoken
 import base64
 from audio_recorder_streamlit import audio_recorder
+import jinja2
 
 from datetime import datetime
 from streamlit_float import *
@@ -182,16 +183,30 @@ def setup_sidebar_export():
 
         st.divider()
 
-        # Converts the list of messages into a JSON Bytes format
-        json_messages = json.dumps(st.session_state["messages"]).encode("utf-8")
+        export_format = st.selectbox("Export format:", ["json", "html"], index=1)
 
-        # And the corresponding Download button
-        st.download_button(
-            label="📥 Export chat history",
-            data=json_messages,
-            file_name="chat_conversation.json",
-            mime="application/json",
-        )
+        if export_format == 'json':
+            json_messages = json.dumps(st.session_state["messages"]).encode("utf-8")
+
+            # And the corresponding Download button
+            st.download_button(
+                label="📥 Export chat history",
+                data=json_messages,
+                file_name="chat.json",
+                mime="application/json",
+            )
+        else:
+            json_messages = json.dumps(st.session_state["messages"])
+            with open('chat.html') as f:
+                template = f.read()
+            html_messages = jinja2.Template(template).render(title="Chat History", messages=json_messages)
+
+            st.download_button(
+                label="📥 Export chat history",
+                data=html_messages,
+                file_name="chat.html",
+                mime="text/html",
+            )
 
         debug = st.toggle("Debug", value=False)
         if debug:
