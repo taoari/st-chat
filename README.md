@@ -20,3 +20,10 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
+* Docker
+
+```bash
+docker build . -t st-chat
+docker run -p 8501:8501 -v .:/app st-chat
+```
+

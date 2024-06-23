@@ -250,13 +250,13 @@ def setup_action_buttons():
             # (this part could probably be improved with the cache option)
             if st.button("🧹 Clear"):
                 st.session_state["messages"] = []
-                st.rerun()
+                # st.rerun()
 
         with col3:
             if st.button("🔁 Redo"):
                 if len(st.session_state["messages"]) > 0:
                     st.session_state["messages"].pop(-1)
-                st.rerun()
+                # st.rerun()
 
         with col4:
 
